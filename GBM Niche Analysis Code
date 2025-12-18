@@ -1,0 +1,1002 @@
+## Figures 5, S3, S4, S5A,B,D
+## Purpose of Script: Data from Xenium samples was stored in a Seurat object and saved as an R object. Xenium samples were loaded into R and analyzed. UMAP plots were made of cell type clusters present in each sample. 
+## Niche analysis was conducted using Seurat’s BuildNicheAssay and each sample was organized into 5 niches. A perinecrotic niche was identified in each sample using this analysis. The perinecrotic niche was overlaid on 
+## the spatial plot for each sample to show its location. VEGFA and LOX expression were overlaid on the sample spatial plot to show these genes were predominantly expressed within the perinecrotic niche. TMEM173 (STING) 
+## expression was also overlaid on the sample spatial plot to show STING expression is found mainly in the non-necrotic niche. The cell type composition of each niche was determined and graphed for each sample. R version 4.2.2. 
+## RStudio version 2022.12.03.353.
+##
+## Author: George D. Dalton
+##
+## Date: December 15, 2025
+
+ls() ## list objects currently present in workspace
+rm(list=ls()) ## remove objects from current workspace
+ls() ## confirm current workspace is empty
+
+## libraries loaded during session
+library(remotes) # version 2.4.2
+library(Seurat) # version 5.1.0
+library(tidyverse) # version 2.0.0
+library(sf) # version 1.0.17
+library(scCustomize) # version 2.1.2
+library(scclusteval) # version 0.0.0.9000
+library(ComplexHeatmap) # version 2.14.0
+library(BiocParallel) # version 1.32.5
+library(ggplot2) # version 3.5.1
+
+# Set working directory 
+setwd(“/home/gd2”)
+
+# Read in a Xenium file (example name: Sample). This is a Seurat file stored as an R object 
+Xenium.obj <- readRDS("~/Sample.rds")
+# Look at Seurat object contents
+Xenium.obj
+
+# Generate Figures 5A-C, S3A-B, S4A-B, S5A
+DimPlot(Xenium.obj, reduction = "umap", group.by = "celltype", label = F) + DarkTheme()
+
+# Perform Build Niche Analysis on Sample, for this sample fov = fov2, generate 5 niches                                                  
+xenium.obj <- BuildNicheAssay(object = Xenium.obj, fov = "fov2", group.by = "celltype",
+                              niches.k = 5, neighbors.k = 30)
+
+# Generate a spatial plot showing the 5 niches identified by BuildNicheAssay, store in niche.plot
+niche.plot <- ImageDimPlot(xenium.obj, group.by = "niches", size = 2, dark.background = F) + ggtitle("Niches") +
+  scale_fill_manual(values = c("#442288", "#6CA2EA", "#B5D33D", "#FED23F", "#EB7D5B"))
+# Look at niche.plot figure to see 5 niches overlaid on spatial plot
+niche.plot
+
+# Look at DEGs in each niche
+# Do this using Seurat’s FindMarkers function
+# Set DefaultAssay to SCT
+DefaultAssay(xenium.obj) <- "SCT"
+# Look at cell identities of xenium.obj
+Idents(xenium.obj)
+# Change cell identities to “niches”
+Idents(object = xenium.obj) <- "niches"
+# Confirm new cell identities
+Idents(xenium.obj) # should be Levels: 1 2 3 4 5
+# Here, we use FindMarkers to look at DEGs in niche 2 versus other niches
+# DEGs at Padjust < 0.05 and Log2FC < -0.5 or > 0.5
+Niche2.markers <- FindMarkers(xenium.obj, only.pos = FALSE, ident.1 = "2", ident.2 = NULL)
+# Look at first 6 rows of DEGs
+head(Niche2.markers)
+# Convert to data frame
+avg.mon <- as.data.frame(Niche2.markers)
+# save DEG info as a CSV file, DEGs will have padjust < 0.05 and Log2FC < -0.5 or > 0.5
+write.table(Niche2.markers, sep=",", file = "Niche2Markers_All.csv", row.names=T)
+
+# Note: Perinecrotic Niche will have high expression of genes like VEGFA, LOX, HILPDA and low expression of immune-related genes like TMEM173(STING)
+
+# Generate Figures 5D-F, S3C-D, S4C-D, S5B
+# Example: In Sample, the perinecrotic niche was niche 4
+# Set DefaultAssay to “SCT”
+DefaultAssay(xenium.obj) <- "SCT"
+# Check cell identities of xenium.obj
+Idents(xenium.obj)
+# If needed, change cell identities to “niches”
+Idents(object = xenium.obj) <- "niches"
+# Confirm cell identities are “niches”
+Idents(xenium.obj)
+
+# Use ImageDimPlot to make figures
+
+# Perinecrotic niche
+ImageDimPlot(xenium.obj, fov = "fov2", nmols = 20000, cols = c("lightgrey", "lightgrey", "lightgrey", "#D6272B", "lightgrey"), size = 1, alpha = 0.3)
+
+# VEGFA
+ImageDimPlot(xenium.obj, fov = "fov2", molecules = c("VEGFA"), mols.cols = "blue", mols.size = 0.25, nmols = 20000, cols = c("lightgrey", "lightgrey", "lightgrey", "#D6272B", "lightgrey"), size = 1.0, alpha = 0.3)
+
+# TMEM173
+ImageDimPlot(xenium.obj, fov = "fov2", molecules = c("TMEM173"), mols.cols = "#7CAE00", mols.size = 0.25, nmols = 20000, cols = c("lightgrey", "lightgrey", "lightgrey", "#D6272B", "lightgrey"), size = 1.0, alpha = 0.3)
+
+# LOX
+ImageDimPlot(xenium.obj, fov = "fov2", molecules = c("LOX"), mols.cols = "#17BECF", mols.size =0.25, nmols = 20000, cols = c("lightgrey", "lightgrey", "lightgrey", "#D6272B", "lightgrey"), size = 1.0, alpha = 0.3)
+
+# For H&E Overlay of perinecrotic niche on H&E image use this
+ImageDimPlot(xenium.obj, fov = "fov2", nmols = 20000, cols = c("black", "black", "black", "#D6272B", "black"), size = 1, alpha = 0.3)
+
+# Generate Figures 5J-L, S3G-H, S4G-H, S5D
+# Generate a table with numbers of each cell type in each niche
+table(xenium.obj$celltype, xenium.obj$niches)
+# Store table in variable called response
+response <- table(xenium.obj$celltype, xenium.obj$niches)
+# Convert to data frame and store in variable response 1
+response1 <- as.data.frame(response)
+# Save as a CSV file
+write.table(response1, sep=",", file="Sample_CellTypes_Per_Niche.csv", row.names=TRUE, col.names=NA, quote=FALSE)
+
+# Organize CSV file: col 1A is “Niche”, col 1B is “Cell_Type”, col 1C is “Percent”. Percent is percentage of each cell type in each niche the total of which is 100%.
+
+# Load new CSV file to make figure of cell composition, store in variable data_summary
+data_summary <- read_csv("Sample Sample Cell Composition To Graph CSV.csv")
+
+# Make cell composition figure
+ggplot(data_summary, aes(x = factor(Niche), y = Percent, fill = Cell_Type, colour = "black")) + 
+  geom_bar(stat = "identity", color = "black") + theme_classic() + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
+## Figures 6, 7, S5, S8-S12
+## Purpose Of Script: Use the R package CellChat to conduct cell-cell communication analysis in perinecrotic and non-necrotic niches in Xenium samples. R version 4.2.2. RStudio version 2022.12.03.353.
+##
+## Author: George D. Dalton
+##
+## Date: December 15, 2025
+ 
+ls() ## list objects currently present in workspace
+rm(list=ls()) ## remove objects from current workspace
+ls() ## confirm current workspace is empty
+
+## libraries loaded during session
+library(remotes) # version 2.4.2
+library(Seurat) # version 5.1.0
+library(CellChat) # version 2.1.2
+library(patchwork) # version 1.3.0
+library(NMF) # version 0.28
+library(ggalluvial) # version 0.12.5
+library(presto) # version 1.0.0
+library(ggplot2) # version 3.5.1
+library(tidyverse) # version 2.0.0
+library(forcats) # version 1.0.0
+library(dplyr) # version 1.1.4
+
+# Set working directory 
+setwd(“/home/gd2”)
+
+# Read in a Xenium file (example name: Sample). This is a Seurat file stored as an R object.
+Xenium.obj <- readRDS("~/Sample.rds")
+# Look at contents of Xenium.obj
+Xenium.obj
+
+# For CellChat analysis, create a perinecrotic and non-necrotic cellchat object
+# For this sample, suppose niche 4 is perinecrotic 
+# Subset Xenium.obj to create a cellchat object that only contains niche 4
+Xenium.obj <- subset (Xenium.obj, subset = niches != "1") # remove niche 1
+Xenium.obj <- subset (Xenium.obj, subset = niches != "2") # remove niche 2
+Xenium.obj <- subset (Xenium.obj, subset = niches != "3") # remove niche 3
+Xenium.obj <- subset (Xenium.obj, subset = niches != "5") # remove niche 5
+# Look at Xenium.obj, should now contain only perinecrotic  niche 4
+Xenium.obj
+
+# To create a cellchat object with only the non-necrotic niches
+# Subset Xenium.obj to remove perinecrotic niche 4 
+Xenium.obj <- subset(Xenium.obj, subset = niches != "4") # removes niche 4
+# Look at Xenium.obj that now contains only the non-necrotic niches
+Xenium.obj
+
+# Prepare input data for CellChat analysis
+
+# Get normalized data matrix or gene expression data of spots/cells and store as data.input
+# rownames are genes and colnames are cells
+data.input = Seurat::GetAssayData(Xenium.obj, slot = "data", assay = "SCT") 
+# Look at first 6 rows of table
+head(data.input)
+# Check dimensions for accuracy
+dim(data.input)
+
+# Define the metadata by manually creating a data frame consisting of the cell labels
+# Store Xenium.obj metadata in variable called meta
+meta <- Xenium.obj@meta.data
+# Check meta dimensions
+dim(meta)
+# Look at first 6 rows of data in meta table
+head(meta)
+# Check cell identities of Xenium.obj
+Idents(Xenium.obj)
+# Set Xenium.obj cell identities as celltype
+Idents(object = Xenium.obj) <- "celltype"
+# Confirm Xenium.obj cell identities are cell types
+Idents(Xenium.obj)
+# Create a table: first column has cell ids, second columns title “labels” and has cell type, third column 
+# titled “samples” and says Perinecrotic since this is the perinecrotic niche
+meta = data.frame(labels = Seurat::Idents(Xenium.obj), samples = "Perinecrotic", row.names = colnames(data.input)) 
+# Look at meta table
+meta
+# Run this
+meta$samples <- factor(meta$samples)
+
+# Check that all cell types or cell labels are present, this will list them
+unique(meta$labels) 
+
+# Check the sample labels
+unique(meta$samples) # this will be Perinecrotic
+
+# Recheck first 6 rows of meta table to see col 1 (cell ids), col 2 (labels), col 3 (samples) and data
+head(meta)
+
+# Get spatial centroid info from spatial object in file and store as csv file
+# This Xenium sample's fov is fov9
+y <- (Xenium.obj@images$fov9)
+z <- GetTissueCoordinates(y)
+
+# Look at first 6 rows of table
+head(z)
+# Save table as a CSV file
+write.table(z, sep=",", file = "Sample_Perinecrotic.csv", row.names=T)
+
+# Open CSV file on desktop, move cell ids to col 1, move x and y coords to col 2 and col 3, title col 2 
+# imagerow, title col 3 imagecol, col 1 has no title
+# Read in data frame with centroid spatial info and store in variable res
+res <-read.table(file.choose(), sep = ",", header = TRUE, row.names = 1)
+class(res) # should be data frame
+head(res) # look at first 6 rows of table
+dim(res) # check table dimensions
+is.atomic(res) # should be false
+# Store res in variable called spatial.locs
+spatial.locs = res
+# Check first 6 rows of data in spatial.locs
+head(spatial.locs)
+class(spatial.locs) # should be data frame
+
+# Spatial factors of spatial Coordinates, must do this conversion data for Xenium data
+conversion.factor = 1
+spot.size = 10
+spatial.factors = data.frame(ratio=conversion.factor, tol=spot.size/2)
+head(spatial.factors)
+
+# Create CellChat object
+cellchat <- createCellChat(object = data.input, meta = meta, group.by = "labels", datatype = "spatial", 
+                           coordinates = spatial.locs, spatial.factors = spatial.factors)
+
+# Look at CellChat object contents
+cellchat
+
+# Choose CellChat Database, choose human as Xenium samples are human samples
+# Store in variable CellChatDB
+CellChatDB <- CellChatDB.human
+
+# Show database categories for cellchat analysis, pie chart shows up in R plot window
+showDatabaseCategory(CellChatDB)
+
+# Use All CellChatDB except for "Non-protein Signaling" for cell-cell communication analysis
+CellChatDB.use <- subsetDB(CellChatDB)
+
+# Set the used database in the object
+cellchat@DB <- CellChatDB.use
+
+# Pre-Processing Expression Data For Cell-To-Cell Communication Analysis
+cellchat <- subsetData(cellchat) # This step is necessary even if using the whole database
+cellchat <- identifyOverExpressedGenes(cellchat, do.fast = FALSE)
+cellchat <- identifyOverExpressedInteractions(cellchat, variable.both = F)
+
+# Compute the communication probability and infer cellular communication network
+cellchat <- computeCommunProb(cellchat, type = "truncatedMean", trim = 0.1,
+                              distance.use = FALSE, interaction.range = 250,
+                              contact.dependent = TRUE, contact.range = 100)
+
+# Great information here. Gives a table with many communication categories
+# Use table info to subdivide total interactions into communication categories for Figures 6A, S5E, S8A, S9A
+df.net <- subsetCommunication(cellchat, slot.name = "net")
+# Convert to data frame
+avg.meta <- as.data.frame(df.net)
+# Save as a CSV file.
+write.table(avg.meta, sep=",", file = "Sample_Communication.csv", row.names=TRUE, col.names = NA, quote=FALSE)
+
+# Make table with total interactions for Figures 6A, S5E, S8A, S9A
+# Total interactions from this table should equal total interactions in Sample_Communication.csv file
+y <- rowSums(cellchat@net$count)
+# Look at first 6 rows of the table
+head(y)
+# Convert to a data frame and store in variable avg.meta1
+avg.meta1 <- as.data.frame(y)
+# Save as a CSV file. Table can be used to get total interaction for the sample.
+write.table(avg.meta1, sep=",", file = "Sample_total_Interactions.csv", row.names=TRUE, col.names = NA, quote=FALSE)
+
+# To make Figures 6A, S5E, S8A, S9A
+# Load CSV file. In file, 1A is “Niche”, 1B is “Cell Type”, 1C is “Percent”. Niche is PN or NN, Cell Type is 
+# signaling category, Percent is number of total interactions per category in the respective niche.
+data_summary <- read_csv("Sample New Composition To Graph.csv")
+# Plot data
+ggplot(data_summary, aes(x = factor(Niche), y = Percent, fill = Cell_Type, colour = "black")) + 
+  geom_bar(stat = "identity", color = "black") + theme_classic() + ylim(0,500) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), axis.text.y = element_text(size = 28, face = "bold"), axis.line.x = element_line(size = 2), axis.line.y = element_line(size = 2),
+        axis.ticks = element_line(size = 2), axis.ticks.length = unit(0.25, "cm"))
+
+# Get table with total interaction strength for Figures 6B, S5F, S8B, S9B
+# These bar plots were made in Microsoft Excel
+y <- rowSums(cellchat@net$weight)
+# Look at first 6 rows of the table
+head(y)
+# Convert to a data frame and store in variable avg.meta2
+avg.meta2 <- as.data.frame(y)
+# Save as a CSV file. Table can be used to get total interaction strength for sample. 
+write.table(avg.meta2, sep=",", file = "Sample_Interaction_Strength.csv", row.names=TRUE, col.names = NA, quote=FALSE)
+
+# Get table with VEGF and MHC-II signaling output and input to target cells
+# Look at cell types and determine degree of outgoing connectivity in specific pathway
+cellchat@netP$centr$VEGF$hub
+# Look at cell types and amount of input signal they receive
+cellchat@netP$centr$VEGF$indeg
+# Load CSV file with signal output to specific targets cells in sample and store in variable data_summary2
+data_summary2 <- read_csv("Sample_Output.csv")
+# Make barplot of data for Figures 6C, 7A, S5G, S8C, S9C, S10A, S11A, S12A
+ggplot(data_summary2, aes(x = factor(Niche), y = y, fill = Cell_Type, colour = "black")) + 
+  geom_bar(stat = "identity", color = "black") + theme_classic() + ylim(0,20) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), axis.text.y = element_text(size = 28, face = "bold"), axis.line.x = element_line(size = 2), axis.line.y = element_line(size = 2),
+        axis.ticks = element_line(size = 2), axis.ticks.length = unit(0.25, "cm"))
+
+# Make chord plots for Figures 6D,F,H; 7B,D,F; S5H; S8D,F; S9D,F; S10B,D; S11B,D; S12C
+# Chord plots were made to look at specific receivers or targets (e.g. Macrophage)
+pathways.show <- c("MHC-II or VEGF") 
+par(mfrow=c(1,1), xpd = TRUE) 
+netVisual_aggregate(cellchat, signaling = pathways.show, layout = "circle",
+                    vertex.label.cex = 0.05, targets.use = c("Macrophage"))
+dev.off()
+
+# Make heatmap of network centrality scores for Figures 6E,G,I; 7C,E,G; S5I; S8E,G; S9E,G; 
+# S10C,E; S11C,E; S12D
+cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP") 
+par(mfrow=c(1,1))
+netAnalysis_signalingRole_network(cellchat, signaling = pathways.show, width = 20, height = 4, font.size = 10, measure.name = c("Sender", "Receiver"), measure = c("outdeg", "indeg"))
+
+# Make dotplot of L-R communication probabilities from sender cells to receiver cells in perinecrotic &
+# non-necrotic niches. Figures 6J-L; 7H-J; S5J; S8H-I; S9H-I; S10F-G; S11F-G; S12D
+# Get ligand-receptor information, communication probabilities, pvalues from this table
+df.net <- subsetCommunication(cellchat, slot.name = "net")
+# Convert to data frame and store in variable avg.meta
+avg.meta <- as.data.frame(df.net)
+# Save as a CSV file.
+write.table(avg.meta, sep=",", file = "Sample_LR.csv", row.names=TRUE, col.names = NA, quote=FALSE)
+
+# Get relevant information on ligand-receptors, communication probabilities and pvalues and set up table in csv file
+# Will plot informatio as a dotplot
+
+# Read in CSV from dotplot folder
+d <- read.csv("Sample MHCII.csv")
+# Look at table
+d
+# Code for dotplot, stored in variable p
+p <- d %>%
+  mutate(x = fct_relevel(x, 
+                         "Task1", "Task2", "Task3", 
+                         "Task4", "Task5", "Task6",
+                         "Task7", "Task8", "Task9",
+                         "Task10", "Task11", "Task12",
+                         "Task13", "Task14", "Task15",
+                         "Task16", "Task17", "Task18")) %>%
+  ggplot(aes(x, forcats::fct_rev(y), size = value, fill = p)) +
+  geom_point(shape = 21, stroke = 0) +
+  scale_x_discrete(position = "top") +
+  scale_radius(range = c(1, 9)) +
+  scale_fill_gradient(low = "red", high = "blue", breaks = c(0, .5, 1), labels = c("Great", "OK", "Bad"), limits = c(0, 1)) +
+  theme_minimal() +
+  theme(legend.position = "bottom", 
+        panel.grid.major = element_blank(),axis.text = element_text(size = 12, face = "bold", color = "black"),
+        legend.text = element_text(size = 8),
+        legend.title = element_text(size = 8)) +
+  guides(size = guide_legend(override.aes = list(fill = NA, color = "black", stroke = .5), 
+                             label.position = "bottom",
+                             title.position = "right", 
+                             order = 1),
+         fill = guide_colorbar(ticks.colour = NA, title.position = "top", order = 2)) +
+  labs(size = "Area = Time Spent", fill = "Score:", x = NULL, y = NULL)
+# Show dotplot
+p
+
+# Save The CellChat Object
+saveRDS(cellchat, file = "CellChat_Sample_Perinecrotic_Only.rds")
+
+## Figure S6
+## Purpose Of Script: Conduct Banksy Analysis Of Each Xenium Sample. Determine If Banksy Identified A Perinecrotic Niche (PN) In The Sample. Determine If The Niche Was Identical To The PN Identified By Seurat’s BuildNicheAssay. 
+## R version 4.2.2. RStudio version 2022.12.03.353.
+##
+## Author: George D. Dalton
+##
+## Date: December 15, 2025
+
+ls() ## list objects currently present in workspace
+rm(list=ls()) ## remove objects from current workspace
+ls() ## confirm current workspace is empty
+
+## libraries loaded during session
+library(Seurat) # version 5.1.0
+library(SeuratData) # version 0.2.2.9001
+library(SeuratWrappers) # version 0.3.2
+library(Banksy) # version 0.1.6
+library(ggplot2) # version 3.5.1
+library(pals) # version 1.9
+library(gridExtra) # version 2.3
+library(SpatialExperiment) # version 1.8.1
+library(SummarizedExperiment) # version 1.28.0
+library(scuttle) # version 1.8.4
+library(scater) # version 1.26.1
+library(cowplot) # version 1.1.3
+
+# Set working directory 
+setwd(“/home/gd2”)
+
+# Step 1 Read In Xenium file (example name: Sample) that is a Seurat file stored as an R object 
+Xenium.obj <- readRDS("~/Sample.rds")
+# Look at Seurat object
+Xenium.obj # for this example, fov = fov2
+
+# Step 2 Extract expression data from Xenium.obj and store as variable gcm
+gcm <- Xenium.obj@assays$SCT@data
+# Get dimensions of gcm
+dim(gcm)
+# Look at first 6 rows of data in gcm
+head(gcm)
+# gcm should be a matrix
+class(gcm)
+
+# Step 3 Get spatial centroid info from spatial object in Xenium.obj and store as csv file
+y <- (Xenium.obj@images$fov2)
+z <- GetTissueCoordinates(y)
+# Save centroid information as a CSV file
+write.table(z, sep=",", file = "TissueCoords_All.csv", row.names=T)
+
+# Step 4 Read in data frame with centroid spatial info from file “TissueCoords_All.csv”
+# row.names: Col 1A = “cell”, Col 1B = “x”, Col 1C = “y”
+res <-read.table(file.choose(), sep = ",", header = TRUE, row.names = 1)
+class(res) # res should be a data frame
+# Look at first 6 rows of data
+head(res)
+# Look at dimensions of gcm
+dim(res)
+is.atomic(res) # this should be false
+
+# Run BANKSY package
+bank <- BanksyObject(own.expr = gcm, cell.locs = res)
+# Look at Banksy object contents
+bank
+# will see something like below
+# Object of class BanksyObject 
+# Assay with 358059 cells 354 features
+# Spatial dimensions: sdimx sdimy 
+# Metadata names: cell_ID nCount NODG 
+# Dimension reductions:
+
+# Continue to run BANKSY
+# Normalize
+bank <- NormalizeBanksy(bank)
+# Scale data
+bank <- ScaleBanksy(bank)
+# Get BANKSY matrix
+bank <- ComputeBanksy(bank, k_geom = 50) 
+# Run PCA
+bank <- RunBanksyPCA(bank, use_agf = FALSE, lambda = 0.8, npcs = 20, verbose = TRUE)
+# Run UMAP
+bank <- RunBanksyUMAP(bank, use_agf = FALSE, lambda = 0.8, npcs = 20, verbose = TRUE) 
+# Get BANKSY clusters, note: this step can take time
+bank <- ClusterBanksy(bank, use_agf = FALSE, lambda = 0.8, npcs = 20, k.neighbors = 50, resolution = 0.4)
+# Look at final Banksy object and the info it now contains
+bank
+
+# Save BANKSY object as an R object 
+saveRDS(bank,"Sample_BANKSY.Robj")
+
+# Take a look at BANKSY clusters on spatial map
+plotSpatial(bank, by = 'clust_M0_lam0.8_k50_res0.4', type = 'discrete')
+
+# Take a look at BANKSY clusters on a UMAP plot
+plotReduction(bank, by = 'clust_M0_lam0.8_k50_res0.4', type = 'discrete')
+
+# Get BANKSY object metadata and store as variable h
+h <- meta.data(bank)
+# Convert to data frame stored as variable banksy.meta
+banksy.meta <- as.data.frame(h)
+# Save data frame as a CSV file
+write.table(banksy.meta, sep=",", file = "Sample_BANKSY_Metadata.csv", 
+            row.names=TRUE, col.names = NA, quote=FALSE)
+
+# Read in CSV file with BANKSY metadata, column with clusters is clust_M0_lam0.8_k50_res0.4
+banksy.meta2 <-read.table(file.choose(), sep = ",", header = TRUE, row.names = 1)
+# Look at column names in CSV file
+head(banksy.meta2)
+# Add BANKSY cluster data To Xenium.obj metadata with column name BanksyCluster
+Xenium.obj@meta.data$BanksyCluster <- banksy.meta2$clust_M0_lam0.8_k50_res0.4
+# Confirm Xenium.obj has metadata column with BANKSY clusters called BanksyCluster
+head(Xenium.obj@meta.data)
+# Store Xenium.obj metadata as variable called how
+how <- Xenium.obj@meta.data
+# Convert how to a data frame stored as how1
+how1 <- as.data.frame(how)
+# save the new Xenium.obj metadata as a CSV file
+write.table(how1, sep=",", file = "Sample_Metadata_With_BANKSY_Clusters.csv", 
+            row.names=TRUE, col.names = NA, quote=FALSE)
+
+# Save Updated Xenium.obj as an R object
+saveRDS(Xenium.obj,"Sample_With_BANKSY_Info.rds")
+
+# Look at expression of each perinecrotic niche marker gene (e.g., LOX, HILPDA, TMEM173, VEGFA) in each BANSKY identified niche
+DefaultAssay(Xenium.obj) <- "SCT"
+Idents(Xenium.obj)
+Idents(object = Xenium.obj) <- "BanksyCluster"
+Idents(Xenium.obj)
+DotPlot(Xenium.obj, features = "HILPDA") + RotatedAxis()
+
+# Can also look at perinecrotic niche marker genes (LOX, HILPDA, VEGFA, TMEM173) simultaneously in each BANKSY identified niche 
+# Define variable "markers.to.plot" to look at specific markers
+markers.to.plot <- c("LOX", "VEGFA", "HILPDA", "TMEM173")
+# Plot
+DotPlot(Xenium.obj, features = markers.to.plot, cols = c("gray", "tomato"), dot.scale = 8) +
+  RotatedAxis()
+
+# If plots suggest BANKSY niche 2 is perinecrotic niche that was also identified with Seurat’s BuildNicheAssay
+# Look at DEGs in BANKSY niche 2 compared to other BANKSY niches
+# Do this using Seurat’s FindMarkers function
+DefaultAssay(Xenium.obj) <- "SCT"
+Idents(Xenium.obj)
+Idents(object = Xenium.obj) <- "BanksyCluster"
+Idents(Xenium.obj)
+Niche2.markers <- FindMarkers(Xenium.obj, only.pos = FALSE, ident.1 = "2", ident.2 = NULL)
+head(Niche2.markers)
+# convert to data frame
+avg.mon <- as.data.frame(Niche2.markers)
+# save DEG info as a CSV file, DEGs will have padjust < 0.05 and Log2FC < -0.5 or > 0.5
+write.table(Niche2.markers, sep=",", file = "Niche2Markers_All.csv", row.names=T)
+# Confirm DEGs in Banksy niche 2 have elevated HILPDA, VEGFA, LOX and low TMEM173, etc.
+
+# To make Figure S6 BANKSY plot 
+# Determined BANKSY niche 2 is perinecrotic niche identified using Seurat’s BuildNicheAssay
+# Subset Xenium.obj to make an object with only BANKSY niche 2
+Two_Only <- subset (Xenium.obj, subset = BanksyCluster == "2")
+Idents(Two_Only)
+Idents(object = Two_Only) <- "BanksyCluster"
+Idents(Two_Only)
+# Plot this
+niche.plot <- ImageDimPlot(Two_Only, group.by = "BanksyCluster", size = 1.5, dark.background = F) + ggtitle("Niches")
+niche.plot
+
+## Figure S7
+## Purpose Of Script: Use the R package UCell to calculate average EMT scores for each tumor cell type in the perinecrotic and non-necrotic niche of each sample. The average EMT scores for each tumor cell type in 
+## both niches in each sample were visualized using heatmaps. Dotplots were used to visualize the expression of EMT markers in both niches in all tumor cell types. The python package spaTrack was used to construct detailed 
+## tumor cell trajectories for individual Xenium samples and to determine if EMT gene expression changed as specific tumor cells transitioned over time. R version 4.2.2. RStudio version 2022.12.03.353. Python version 3.9.
+##
+## Author: George D. Dalton
+##
+## Date: December 15, 2025
+
+## Work in R using UCell to determine EMT scores to make Figure S7A ##
+
+ls() ## list objects currently present in workspace
+rm(list=ls()) ## remove objects from current workspace
+ls() ## confirm current workspace is empty
+
+## libraries loaded during session
+library(remotes) # version 2.4.2
+library(Seurat) # version 5.1.0
+library(tidyverse) # version 2.0.0
+library(sf) # version 1.0.17
+library(scCustomize) # version 2.1.2
+library(scclusteval) # version 0.0.0.9000
+library(ComplexHeatmap) # version 2.14.0
+library(BiocParallel) # version 1.32.5
+library(ggplot2) # version 3.5.1
+library(patchwork) # version 1.3.0
+library(SeuratData) # version 0.2.2.9001
+library(RColorBrewer) # version 1.1.3
+library(UCell) # version 2.2.0
+
+# Set working directory 
+setwd(“/home/gd2”)
+
+# Step 1 Use UCell sample dataset (sample.matrix) to test UCell installation
+# Load UCell sample.matrix dataset, this is a sparse matrix of 600 cells and 20729 genes
+data(sample.matrix)
+
+# Look at number of rows and columns in dataset
+dim(sample.matrix) # should be 20729 600
+
+# Look at first 6 rows of data in the dataset
+head(sample.matrix)
+
+# Can now define simple gene sets to get gene signature scores for cells in the sample
+gene.sets <- list(Tcell_signature = c("CD2","CD3E","CD3D"),
+                  Myeloid_signature = c("SPI1","FCER1G","CSF1R"))
+
+# Run ScoreSignatures_UCell to get signatures scores for all cells
+scores <- ScoreSignatures_UCell(sample.matrix, features=gene.sets)
+
+# Look at gene signature scores for first 6 rows of data, this confirms package is installed
+head(scores)
+
+# Step 2 Use UCell to determine EMT scores for each tumor cell type in the perinecrotic and non-necrotic niche of each Xenium sample
+
+# Read in a Xenium file (example name: Sample). This is a Seurat file stored as an R object 
+Xenium.obj <- readRDS("~/Sample.rds")
+# Look at Seurat object contents
+Xenium.obj 
+
+# Subset Xenium.obj into sub-objects composed of individual tumor cell types
+# Check current cell identities of Xenium.obj
+Idents(Xenium.obj) # Levels: SeuratProject
+
+# Set current cell identities of Xenium.obj to “celltype”
+Idents(object = Xenium.obj) <- "celltype"
+
+# Confirm current cell identities of Xenium.obj is “celltype”
+Idents(Xenium.obj) # should be # of Levels: list of individual cell types
+
+# Subset Xenium.obj into sub-objects composed of individual tumor cell types
+# In this example, we do this for Tumor_1 cells
+# Subset Xenium.obj into a sub-object with only Tumor_1 cells and store in variable Tumor1
+Tumor1 <- subset(Xenium.obj, subset = celltype == "Tumor_1")
+
+# Want EMT signature score for Tumor_1 cells in the perinecrotic niche and non-necrotic niche
+# Suppose the perinecrotic niche is niche 4
+# To get EMT score for non-necrotic niches, subset Tumor1 by removing perinecrotic niche 4
+
+# Check current identities for Tumor1
+Idents(Tumor1) # should be  Levels: Tumor_1
+
+# Remove perinecrotic niche #4 from Tumor1 by subsetting, niche info is in metadata “niches” column
+Nonnecrotic_Only <- subset (Tumor1,subset =niches!="4")
+
+# Check cell identities of Nonnecrotic_Only
+Idents(Nonnecrotic_Only) # should be  Levels: Tumor_1
+
+# Change cell identities to “niches”
+Idents(object = Nonnecrotic_Only) <- "niches"
+
+# Check cell identities
+Idents(Nonnecrotic_Only) # should be niches Levels: 1 2 3 5
+
+# Change assay name in Seurat object to RNA
+Tumor1cell <- RenameAssays(Nonnecrotic_Only, assay.name = "SCT", new.assay.name = "RNA")
+
+# Get normalized count data from Seurat object
+data.matrix <- Tumor1cell@assays$RNA@data
+
+# Look at number of rows and columns in matrix 
+dim(data.matrix)
+class(data.matrix) # should be a dgCMatrix or Matrix
+
+# Store EMT signature in the variable basic.sign
+basic.sign <- list( EMT_signature = c("CAPG", "CDH6", "COL12A1", "CXCL8", "CXCL12", "DCN", 
+        "FBLN1", "GJA1", "IGFBP3", "IGFBP4", "IL6", "LAMA2", "LOX", 
+        "PLAUR", "POSTN", "SLIT3", "SPP1", "TGFB1", "TGFBI", "THBS1", 
+        "TNC", "VCAN", "VEGFA", "VIM"))
+
+# Calculate EMT scores using UCell
+scores <- ScoreSignatures_UCell(data.matrix, features=basic.sign)
+
+# Look at first 5 rows of scores
+scores[1:5,]
+
+# Convert scores to a data frame
+avg.mon <- as.data.frame(scores)
+
+# Save data frame as a CSV file
+write.table(avg.mon, sep=",", file = "UCell_Tumor_1.csv", row.names=T)
+
+# The average EMT score is taken for all Tumor 1 cells and shown in a heatmap.
+# Average EMT scores are shown for each cell type in perinecrotic & non-necrotic niches in each sample
+
+# Figure 7A Code For Heatmaps
+ls() ## list objects currently present in workspace
+rm(list=ls()) ## remove objects from current workspace
+ls() ## confirm current workspace is empty
+
+## libraries loaded during session
+library(ComplexHeatmap) # version 2.14.0
+
+# Load CSV file and store in variable just.raw.counts, load a CSV file for each Xenium sample
+# CSV file row 1 is cell type names, col A row 2 is EMT Score (Perinecrotic), col A row 3 is EMT Score (Non-Necrotic), file has average EMT scores for each cell type in the two niches
+just.raw.counts<-read.table(file.choose(), sep = ",", header = TRUE, row.names = 1)
+
+# Look at data in just.raw.counts
+just.raw.counts
+
+# Store just.raw.counts as variable data_subset
+data_subset <- just.raw.counts
+
+# Convert data_subset to a matrix
+data_subset <-as.matrix(data_subset)
+class(data_subset) # should be “matrix” “array”
+
+# Check dimensions of data_subset
+dim(data_subset)
+
+# Look at first 6 rows of data_subset
+head(data_subset)
+
+# Make basic heatmap of data_subset (not for publication)
+pheatmap(data_subset, cluster_cols=FALSE, cluster_rows=FALSE) # basic heatmap
+
+# Add Colors To The Row And Column Annotations and store in variable my_colour
+# Group is for study treatment groups, Pvalue A is p < 0.001, B is p < 0.01, C is p < 0.05, D is not significant
+my_colour = list(Group = c(No_Tx="#7570B3", Tx ="deeppink", D2C7="chartreuse"),
+                 Pvalue = c(A = "orange", B = "blue", C = "red", D = "black"))
+
+# Read in table with sample group assignments and Pvalue information and store as variable res
+res <-read.table(file.choose(), sep = ",", header = TRUE)
+class(res) # should be data.frame
+head(res) # look at first 6 rows of table
+dim(res) # look at table dimensions
+res$Group <- factor(res$Group, levels = c("No_Tx", "Tx", "D2C7"))
+res$Pvalue <- factor(res$Pvalue, levels = c("A", "B", "C", "D"))
+# Store res in the variable annotation_col
+annotation_col = res
+
+# Make heatmap for Figure 7A, done for each Xenium sample
+pheatmap(data_subset, annotation_colors=my_colour, 
+         annotation_col=annotation_col,
+         cluster_cols=FALSE, 
+         cluster_rows=FALSE,
+         gaps_col = c(0),
+         color = colorRampPalette(c("navy", "white", "firebrick3"))(50),
+         cellheight=20, cellwidth=30, 
+         fontsize = 10, legend = FALSE)
+
+# Make dotplot for Figure 7A, goes below heatmap, make for each Xenium sample
+ls() ## list objects currently present in workspace
+rm(list=ls()) ## remove objects from current workspace
+ls() ## confirm current workspace is empty
+
+## libraries loaded during session
+library(SeuratDisk) # version 0.0.0.9021
+library(SeuratData) # version 0.2.2.9001
+library(Seurat) # version 5.1.0
+library(dplyr) # version 1.1.4
+library(patchwork) # version 1.3.0
+library(ggplot2) # version 3.5.1
+library(RColorBrewer) # version 1.1.3
+
+# Set working directory 
+setwd(“/home/gd2”)
+
+# Load Xenium/Seurat file for a sample that has been subsetted so it only contains tumor cells
+Xenium.obj <- readRDS("~/Sample.rds")
+# Look at Seurat object
+Xenium.obj 
+
+# Only want cells in perinecrotic niche (e.g. niche 5), subset Xenium.obj so only contains niche 5
+# In Xenium.obj, niche info is in “niches” column in metadata
+AllCells <- subset (Xenium.obj, subset = niches == "5")
+# Look at AllCells
+AllCells
+# Set DefaultAssay to “SCT”
+DefaultAssay(AllCells) <- "SCT"
+
+# define variable "markers.to.plot" with EMT marker genes to look at in AllCells perinecrotic niche
+markers.to.plot <- c("VIM", "VEGFA", "TNC", "SPP1", "LOX", "APP")
+
+# set levels to order how cell types appear on dot plot
+levels(AllCells) <- c('Tumor_OPC-like_2', 'Tumor_OPC-like_1', 'Tumor_1',
+                      'Tumor_OPC-like_3', 'Tumor_AC-like_1', 'Tumor_5',
+                      'Tumor_2', 'Tumor_AC-like_2', 'Tumor_3',
+                      'Tumor_4')
+
+# Now, make the dotplot
+DotPlot(AllCells, features = markers.to.plot) +
+  RotatedAxis() + coord_flip() + scale_colour_gradient2(low = "purple", mid = "turquoise", high = "red")
+
+## Figure S7B-G ##
+## Initial processing of Seurat object in R to make gene expression & spatial coordinate TSV files
+## TSV files used to make anndata object in Python, work done in Jupyter Notebook
+## Anndata object used for spaTrack analysis, work done in Jupyter Notebook
+
+## Work done in R to make gene expression, spatial coordinate TSV files
+
+ls() ## list objects currently present in workspace
+rm(list=ls()) ## remove objects from current workspace
+ls() ## confirm current workspace is empty
+
+## libraries loaded during session
+library(Seurat) # version 5.1.0
+library(SeuratData) # version 0.2.2.9001
+library(pals) # version 1.9
+library(gridExtra) # version 2.3
+library(SpatialExperiment) # version 1.8.1
+library(SummarizedExperiment) # version 1.28.0
+library(scuttle) # version 1.8.4
+library(scater) # version 1.26.1
+library(cowplot) # version 1.1.3
+
+# Set working directory 
+setwd(“/home/gd2”)
+
+# Read in a Xenium file (example name: Sample). This is a Seurat file stored as an R object 
+Xenium.obj <- readRDS("~/Sample.rds")
+# Look at Seurat object contents
+Xenium.obj 
+
+# Subset Xenium.obj into a sub-object composed only of tumor cell types
+
+# Remove non-necrotic niche info from Xenium.obj with only tumor cells
+# Example, if perinecrotic niche is niche 5
+# Set current cell identities of Xenium.obj to “niches”
+Idents(object = Xenium.obj) <- "niches"
+
+# Check cell identities
+Idents(Xenium.obj) # should be # of Levels: 1 2 3 4 5
+
+# Subset Xenium.obj to remove non-necrotic niche info
+Necrotic_Only <- subset (Xenium.obj, subset = niches == "5")
+
+# Confirm Necrotic_Only contains only perinecrotic niche 5
+Idents(Necrotic_Only) # should be # of Levels: 5
+
+# Save metadata table of Necrotic_Only in variable h
+h <- (Necrotic_Only@meta.data)
+head(h) # look at first 6 rows 
+avg.mon <- as.data.frame(h) # convert to data frame then save as CSV file
+write.table(avg.mon, sep=",", file = " NecroticOnly_metadata.csv", row.names=T)
+
+# Extract gene expression data Necrotic_Only and store as variable gcm
+gcm <- Necrotic_Only@assays$SCT@data
+dim(gcm) # look at table dimensions
+head(gcm) # look at first 6 rows of table
+class(gcm) # look at type of object, should be a matrix
+# Convert gcm to a data frame stored in variable response1
+response1 <- as.data.frame(gcm)
+# Transpose data so genes are columns and cell ids are rows
+transposed_df <- t(response1) 
+# Confirm data is transposed
+head(transposed_df) 
+# Save this as a TSV file for use in Python analysis
+write.table(transposed_df, sep="\t", file="Sample_TransposedGeneExpression.tsv", row.names=TRUE, col.names=NA, quote=FALSE)
+
+# Get spatial centroid info from Necrotic_Only in file and store as csv file, if fov = fov4
+y <- (Necrotic_Only@images$fov4)
+z <- GetTissueCoordinates(y)
+head(z) # look at first 6 rows of table
+# Save as a CSV file
+write.table(z, sep=",", file = "Necrotic Only_TissueCoords_All.csv", row.names=T)
+
+# Use metadata CSV file and Tissue Coords CSV file for Necrotic_Only to make a CSV file with 
+# the following info: col A has cell types and is titled “cluster”, col B has X coords and is titled “x”, col C 
+# has Y coords and is titled “y”, col D has cell IDs and is titled “ID”
+# Read in this CSV file and store in variable res
+res <-read.table(file.choose(), sep = ",", header = TRUE)
+class(res) # check class
+head(res) # look at first 6 rows
+dim(res) # check dimensions for accuracy
+# If file looks good, save as a TSV file for use in Python analysis
+write.table(res, sep="\t", file="Sample_TissueCoords.tsv", col.names=NA, quote=FALSE)
+
+## Work done in Jupyter Notebook to conduct spaTrack analysis ##
+
+## packages used
+import warnings
+warnings.filterwarnings("ignore")
+
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import numpy as np
+import pandas as pd
+import scanpy as sc
+import spaTrack as spt
+
+# package versions: matplotlib 3.9.4; numpy 1.24.4; pandas 1.4.3; 
+# package versions: scanpy 1.9.8; spaTrack 1.0.2; python 3.9
+
+# Step 1 Preparation: in Python make anndata object for spaTrack analysis
+
+# Load TSV file with gene expression data, working directory is /home/gd2/
+adata = sc.read("/home/gd2/Sample_TransposedGeneExpression.tsv")
+
+# Look at dimensions of adata, confirm correct
+adata
+
+# Load TSV file with cell type information and spatial coordinates
+df_annot = pd.read_table("/home/gd2/Sample_TissueCoords.tsv")
+
+# Look at table in variable df_annot
+df_annot
+
+# Input cell type information from df_annot into adata.obs[‘cluster’]
+adata.obs["cluster"] = df_annot["cluster"].values
+
+# Input spatial coordinates from df_annot into adata.obsm[“X_spatial”]
+adata.obsm["X_spatial"] = df_annot[["x", "y"]].values
+
+# Run this step
+adata.layers["counts"] = adata.X
+
+# Perform filtration and normalization steps
+sc.pp.filter_genes(adata, min_cells=0)
+sc.pp.normalize_total(adata, target_sum=1e4)
+sc.pp.log1p(adata)
+sc.pp.calculate_qc_metrics(adata, percent_top=None, log1p=False, inplace=True)
+
+# View figure of cell types on spatial plot, save a png file
+fig, axs = plt.subplots(figsize=(7,7))
+ax = sc.pl.embedding(adata, basis = 'X_spatial', show = False, color = 'cluster', ax=axs, frameon=False, title = ' ' , palette = 'tab20', size=100, save = 'Sample.png’)
+
+# Save anndata object and use for spaTrack analysis
+adata.write('/home/gd2/Sample_Anndata.h5ad')
+
+# Step 2 spaTrack Analysis
+# Read in the anndata file
+adata = sc.read_h5ad('/home/gd2/Sample_Anndata.h5ad')
+
+# Look at adata contents
+adata
+
+# Look at entropy value for each cell type to help identify starting cluster
+adata = spt.assess_start_cluster(adata)
+
+# Generate a figure with entropy values for each cell type
+spt.assess_start_cluster_plot(adata)
+
+# Select starting cells based on cell type, start cells with low entropies
+start_cells=spt.set_start_cells(adata,select_way='cell_type',cell_type='Tumor_OPC-like_1')
+fig, axs = plt.subplots(figsize=(5,5))
+plt.scatter(adata.obsm['X_spatial'][:,0],adata.obsm['X_spatial'][:,1],c='#D3D3D3',s=8)
+plt.scatter(adata.obsm['X_spatial'][start_cells][:,0],adata.obsm['X_spatial'][start_cells][:,1],c='orange',s=8)
+
+# Calculate cell transition probability
+adata.obsp["trans"] = spt.get_ot_matrix(adata, data_type="spatial",alpha1=0.5,alpha2=0.5)
+
+# Calculate cell pseudotime
+adata.obs["ptime"] = spt.get_ptime(adata, start_cells)
+
+# Calculate vector field velocity
+adata.uns["E_grid"], adata.uns["V_grid"] = spt.get_velocity(adata, basis="spatial", n_neigh_pos=50)
+
+# Plot pseudotime
+fig, axs = plt.subplots(figsize=(5, 5))
+sc.pl.embedding(adata, basis='spatial', color='ptime', show=False, ax=axs, color_map='Reds', title='ptime', size=100)
+axs.xaxis.set_major_locator(ticker.MultipleLocator(500))
+axs.yaxis.set_major_locator(ticker.MultipleLocator(500))
+
+# Plot quiver plot
+fig, axs = plt.subplots(figsize=(5, 5))
+sc.pl.embedding(adata, basis='spatial',show=False,title=' ',color='cluster',ax=axs,frameon=False,palette='tab20b',legend_fontweight='normal',alpha=0.1,size=600)
+axs.quiver(adata.uns['E_grid'][0],adata.uns['E_grid'][1],adata.uns['V_grid'][0],adata.uns['V_grid'][1],scale=0.008)
+
+# Plot stream plot
+fig,axs=plt.subplots(ncols=1,nrows=1,figsize=(6,6))
+ax = sc.pl.embedding(adata,  basis='spatial',show=False,title=' ',color='cluster',ax=axs,frameon=False,palette='tab20b',legend_fontweight='normal',alpha=0.8,size=150)
+ax.streamplot(adata.uns['E_grid'][0], adata.uns['E_grid'][1], adata.uns['V_grid'][0], adata.uns['V_grid'][1],density=1.8,color='black',linewidth=2.5,arrowsize=1.5)
+
+# Least Action Path (LAP) step 1
+VecFld=spt.VectorField(adata,basis='spatial')
+
+# Least Action Path (LAP) step 2, LAP_start_point and LAP_end_point are manually entered
+fig, ax = plt.subplots(figsize=(6, 6))
+
+LAP_start_point=[6749, 61]
+LAP_end_point=[8239,502]
+LAP_start_cell=spt.nearest_neighbors(LAP_start_point,adata.obsm['X_spatial'])[0][0]
+LAP_end_cell=spt.nearest_neighbors(LAP_end_point,adata.obsm['X_spatial'])[0][0]
+
+plt.scatter(*adata.obsm["X_spatial"].T,c='#D3D3D3',s=15)
+plt.scatter(*adata[LAP_start_cell].obsm['X_spatial'].T,s=20)
+plt.scatter(*adata[LAP_end_cell].obsm['X_spatial'].T,s=20)
+
+# Final LAP step
+lap=spt.least_action(adata,
+    init_cells=adata.obs_names[LAP_start_cell],
+    target_cells=adata.obs_names[LAP_end_cell],
+    vecfld=VecFld,
+    basis='spatial',
+    adj_key='X_spatial_distances',
+    EM_steps=5,
+    n_points=20
+)
+
+# This step generates Figures S7B,D,F. View optimal transition path
+LAP_ptime,LAP_nbrs=spt.map_cell_to_LAP(adata,cell_neighbors=80)
+sub_adata=adata[LAP_nbrs,:]
+sub_adata.obs['ptime']=LAP_ptime
+sub_adata=sub_adata[np.argsort(sub_adata.obs["ptime"].values), :].copy()
+
+fig, ax = plt.subplots(figsize=(6,5))
+plt.axis('off')
+ax = sc.pl.embedding(adata,  basis='X_spatial',color='cluster',show=False,ax=ax,frameon=False,legend_loc=None,alpha=0.6,size=150)
+ax.streamplot(adata.uns['E_grid'][0], adata.uns['E_grid'][1], adata.uns['V_grid'][0], adata.uns['V_grid'][1],density=1.2,color='black',linewidth=2,arrowsize=1.2)
+ax = spt.plot_least_action_path(adata,basis='spatial',ax=ax,point_size=120,linewidth=5)
+sc.pl.embedding(sub_adata, basis='X_spatial',ax=ax, color="ptime", cmap="YlGnBu",frameon=True,size=150,title=' ', save='Tumor_1_Image_2_Sep_14.png')
+
+# Choose cell type on transition path and filter genes with high variability and expression levels greater 
+# than minimum expression proportion
+sub_adata_path=sub_adata[sub_adata.obs['cluster'].isin(['Tumor_1'])]
+sub_adata_path=spt.filter_gene(sub_adata_path,min_exp_prop=0.1,hvg_gene=3000)
+
+# Fit gene expression and cell pseudotime using Generalized Additive Model (GAM)
+# Step 1
+df_res  = spt.ptime_gene_GAM(sub_adata_path,core_number=5)
+#Step 2
+df_sig_res = df_res.loc[(df_res['model_fit']>0.05) & (df_res['fdr']<0.05)]
+
+# Generate heatmap. This step generates Figures S7C,E,G.
+sort_exp_sig = spt.order_trajectory_genes(sub_adata,df_sig_res,cell_number=20)
+spt.plot_trajectory_gene_heatmap(sort_exp_sig,smooth_length=100,gene_label_size=15,cmap_name='twilight_shifted')
+
+# Save anndata object after analysis
+adata.write('Sample_Completed_spaTrack_Anndata.h5ad')
+
+
+
